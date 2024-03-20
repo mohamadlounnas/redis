@@ -13,12 +13,13 @@ import type { Logger } from '@adonisjs/core/logger'
 import { type ClusterOptions, type RedisOptions, Redis } from 'ioredis'
 
 import debug from './debug.js'
-import { baseMethods } from './connections/io_methods.js'
+import { baseMethods, redisMethods } from './connections/io_methods.js'
 import RedisConnection from './connections/redis_connection.js'
 import RedisClusterConnection from './connections/redis_cluster_connection.js'
 import type {
   GetConnectionType,
   IORedisBaseCommands,
+  IORedisConnectionCommands,
   PubSubChannelHandler,
   PubSubPatternHandler,
   RedisConnectionsList,
@@ -143,10 +144,10 @@ class RedisManager<ConnectionsList extends RedisConnectionsList> extends Emitter
     const connection =
       'clusters' in config
         ? new RedisClusterConnection(
-            name as string,
-            config.clusters,
-            this.#mergeScripts(config.clusterOptions || {})
-          )
+          name as string,
+          config.clusters,
+          this.#mergeScripts(config.clusterOptions || {})
+        )
         : new RedisConnection(name as string, this.#mergeScripts(config))
 
     /**
@@ -300,9 +301,15 @@ class RedisManager<ConnectionsList extends RedisConnectionsList> extends Emitter
   }
 }
 
-interface RedisManager<ConnectionsList extends RedisConnectionsList> extends IORedisBaseCommands {}
+interface RedisManager<ConnectionsList extends RedisConnectionsList> extends IORedisBaseCommands, IORedisConnectionCommands { }
+
 baseMethods.forEach((method) => {
-  ;(RedisManager.prototype as any)[method] = function redisConnectionProxyFn(...args: any[]) {
+  ; (RedisManager.prototype as any)[method] = function redisConnectionProxyFn(...args: any[]) {
+    return this.connection()[method](...args)
+  }
+})
+redisMethods.forEach((method) => {
+  ; (RedisManager.prototype as any)[method] = function redisConnectionProxyFn(...args: any[]) {
     return this.connection()[method](...args)
   }
 })
